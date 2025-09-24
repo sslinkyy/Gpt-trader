@@ -1,0 +1,12 @@
+intent: export_quotes
+created_at: "2025-09-24T09:32:00Z"
+actor: "chatgpt"
+priority: normal
+args:
+  symbol: "AAPL"
+guards:
+  - expr: "${STATE.market.session == 'open'}"
+on_success:
+  - notify: log
+on_failure:
+  - screenshot: true
