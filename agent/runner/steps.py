@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any, Dict
 
@@ -131,8 +132,25 @@ class RecipeRunner:
         expr = payload.get("expr")
         if not expr:
             raise RecipeExecutionError("assert.expr requires 'expr'.")
-        session = self._state.market_session()
-        LOGGER.info("Evaluating guard expression '%s' (session=%s)", expr, session)
+
+        expression = _extract_expression(expr)
+        state_namespace = _wrap_eval_namespace(self._state.snapshot())
+        context_namespace = _wrap_eval_namespace(context)
+
+        safe_builtins = {"len": len, "min": min, "max": max, "sum": sum, "sorted": sorted, "any": any, "all": all}
+        try:
+            result = eval(  # noqa: S307 - controlled evaluation context
+                expression,
+                {"__builtins__": safe_builtins},
+                {"STATE": state_namespace, "CTX": context_namespace},
+            )
+        except Exception as exc:  # pragma: no cover - defensive
+            raise RecipeExecutionError(f"Failed to evaluate expression '{expr}': {exc}") from exc
+
+        if not result:
+            raise RecipeExecutionError(f"Expression '{expr}' evaluated to false.")
+
+        LOGGER.info("Guard expression '%s' evaluated to True", expr)
 
     def step_sleep_ms(self, payload: Dict[str, Any], context: Dict[str, Any]) -> None:
         LOGGER.info("[demo] Would sleep for %sms", payload.get("duration", 0))
@@ -142,3 +160,39 @@ class RecipeRunner:
 
 
 __all__ = ["RecipeRunner", "RecipeExecutionError"]
+
+
+def _extract_expression(expr: str) -> str:
+    stripped = expr.strip()
+    if stripped.startswith("${") and stripped.endswith("}"):
+        return stripped[2:-1].strip()
+    return stripped
+
+
+class _EvalNamespace:
+    """Provide attribute and key access for nested mappings during eval."""
+
+    def __init__(self, data: Mapping[str, Any]) -> None:
+        self._data = {key: _wrap_eval_namespace(value) for key, value in data.items()}
+
+    def __getattr__(self, item: str) -> Any:
+        try:
+            return self._data[item]
+        except KeyError as exc:  # pragma: no cover - defensive
+            raise AttributeError(item) from exc
+
+    def __getitem__(self, key: str) -> Any:
+        return self._data[key]
+
+    def __repr__(self) -> str:  # pragma: no cover - debug helper
+        return f"_EvalNamespace({self._data!r})"
+
+
+def _wrap_eval_namespace(value: Any) -> Any:
+    if isinstance(value, _EvalNamespace):
+        return value
+    if isinstance(value, Mapping):
+        return _EvalNamespace(value)
+    if isinstance(value, Sequence) and not isinstance(value, (str, bytes, bytearray)):
+        return type(value)(_wrap_eval_namespace(item) for item in value)
+    return value
