@@ -1,0 +1,16 @@
+name: ts.web.export_quotes
+steps:
+  - reporter.note:
+      message: "Begin export_quotes demo"
+  - app.start:
+      name: browser
+  - browser.launch:
+      download_dir: "C:/Automation/Sandbox"
+  - page.goto:
+      url: "https://example.com/quotes"
+  - dom.click:
+      selector: "text=Download"
+  - download.expect_and_save:
+      filename: "quotes.csv"
+  - reporter.note:
+      message: "Export completed"

@@ -1,0 +1,77 @@
+profiles:
+  default: safe
+  definitions:
+    safe:
+      description: "Conservative automation profile"
+      toggles:
+        idle_only: true
+        foreground_required: true
+        coordinate_clicks: false
+        elevation: false
+        network_allow: []
+        filesystem_allow: []
+    balanced:
+      description: "Balanced automation profile"
+      toggles:
+        idle_only: false
+        foreground_required: true
+        coordinate_clicks: false
+        elevation: false
+        network_allow: ["https://example.com"]
+        filesystem_allow: ["C:/Automation/Sandbox"]
+    unrestricted:
+      description: "Full automation profile (use with caution)"
+      toggles:
+        idle_only: false
+        foreground_required: false
+        coordinate_clicks: true
+        elevation: true
+        network_allow: ["*"]
+        filesystem_allow: ["*"]
+intents:
+  directory: C:/Automation/intents
+  archive_directory: C:/Automation/intents/archive
+recipes:
+  directory: agent/examples/recipes
+intent_map:
+  export_quotes:
+    recipe: ts.web.export_quotes.yml
+apps:
+  notepad:
+    description: "Windows Notepad"
+    path: "C:/Windows/System32/notepad.exe"
+    enabled: true
+    window:
+      title_match: "Notepad"
+      class_match: null
+      process_name: "notepad.exe"
+  calculator:
+    description: "Windows Calculator"
+    shell: "calc.exe"
+    enabled: true
+    window:
+      title_match: "Calculator"
+      class_match: null
+      process_name: "Calculator.exe"
+  browser:
+    description: "Default system browser"
+    protocol: "https"
+    enabled: true
+    window:
+      title_match: ""
+      class_match: null
+      process_name: null
+llm:
+  active_provider: openai_gpt4o
+  providers:
+    openai_gpt4o:
+      type: api
+      provider: openai
+      model: gpt-4o
+      api_key: "${OPENAI_API_KEY}"
+state:
+  accounts:
+    main:
+      cash_free: 100000.0
+  market:
+    session: closed
