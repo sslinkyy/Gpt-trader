@@ -5,7 +5,10 @@ import os
 from pathlib import Path
 from typing import Any, Dict
 
-import yaml
+try:  # pragma: no cover - exercised indirectly during tests
+    import yaml  # type: ignore[import-not-found]
+except ImportError:  # pragma: no cover - fallback path covered indirectly
+    yaml = None
 
 from agent.core.logger import configure_logging
 from agent.schemas.config import ConnectorConfigSchema
@@ -24,7 +27,7 @@ class ConfigLoader:
             path = self._base_path / path
 
         with path.open("r", encoding="utf-8") as handle:
-            raw_config = yaml.safe_load(handle)
+            raw_config = _load_config(handle)
 
         config = ConnectorConfigSchema.parse_obj(raw_config)
         return config
@@ -61,6 +64,25 @@ def _expand_env_vars(config: ConnectorConfigSchema) -> None:
     for mapping in config.intent_map.values():
         if "recipe" in mapping:
             mapping["recipe"] = os.path.expandvars(mapping["recipe"])
+
+
+def _load_config(handle: Any) -> Dict[str, Any]:
+    text = handle.read()
+
+    if yaml is not None:
+        return yaml.safe_load(text) or {}
+
+    import json
+
+    try:
+        data = json.loads(text or "{}")
+    except json.JSONDecodeError as exc:  # pragma: no cover - defensive
+        raise ValueError("Failed to parse configuration. Install PyYAML for full YAML support.") from exc
+
+    if not isinstance(data, dict):
+        raise ValueError("Configuration root must be a mapping.")
+
+    return data
 
 
 __all__ = ["ConfigLoader", "bootstrap_config"]
