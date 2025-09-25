@@ -1,6 +1,7 @@
 """Tests for recipe runner step handlers."""
 from __future__ import annotations
 
+from pathlib import Path
 from unittest.mock import MagicMock
 
 import pytest
@@ -39,3 +40,42 @@ def test_assert_expr_raises_when_false() -> None:
             {"expr": "${STATE.accounts['main'].cash_free > 5000}"},
             {},
         )
+
+
+def test_run_recipe_tracks_activity(tmp_path: Path) -> None:
+    recipe_path = tmp_path / "demo.yaml"
+    recipe_path.write_text(
+        """steps:\n  - app.start:\n      name: trader\n  - sleep.ms:\n      duration: 100\n""",
+        encoding="utf-8",
+    )
+    runner = _build_runner()
+
+    runner.run_recipe(recipe_path, {"symbol": "AAPL"})
+
+    snapshot = runner._state.snapshot()
+    activity = snapshot["activity"]
+    history = activity["history"]
+
+    assert activity["current"] is None
+    assert [record["name"] for record in history] == ["app.start", "sleep.ms"]
+    assert history[0]["metadata"]["step_index"] == 1
+    assert history[1]["status"] == "succeeded"
+
+
+def test_run_recipe_records_failures(tmp_path: Path) -> None:
+    recipe_path = tmp_path / "failing.yaml"
+    recipe_path.write_text(
+        """steps:\n  - assert.expr:\n      expr: \"${1 == 0}\"\n""",
+        encoding="utf-8",
+    )
+    runner = _build_runner()
+
+    with pytest.raises(RecipeExecutionError):
+        runner.run_recipe(recipe_path, {})
+
+    snapshot = runner._state.snapshot()
+    history = snapshot["activity"]["history"]
+
+    assert history[-1]["name"] == "assert.expr"
+    assert history[-1]["status"] == "failed"
+    assert "Expression" in (history[-1]["error"] or "")

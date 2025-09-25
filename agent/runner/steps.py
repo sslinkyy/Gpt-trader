@@ -55,7 +55,9 @@ class RecipeRunner:
             payload_data = payload or {}
             if not isinstance(payload_data, dict):
                 raise RecipeExecutionError(f"Step {name} payload must be a mapping.")
-            handler(payload_data, context)
+            metadata = {"step_index": idx, "payload_keys": sorted(payload_data.keys())}
+            with self._state.activity(name, metadata=metadata):
+                handler(payload_data, context)
 
     # --- Step handlers -------------------------------------------------
 
