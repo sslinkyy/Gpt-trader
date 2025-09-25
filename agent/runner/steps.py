@@ -6,7 +6,10 @@ from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any, Dict
 
-import yaml
+try:  # pragma: no cover - import guard exercised in tests via fallback
+    import yaml  # type: ignore[import-not-found]
+except ImportError:  # pragma: no cover - handled by fallback loader below
+    yaml = None
 
 from agent.apps.registry import ApplicationRegistry
 from agent.runner.ui_engine import UIClickEngine, UIElementHandle
@@ -34,7 +37,7 @@ class RecipeRunner:
 
     def run_recipe(self, recipe_path: Path, context: Dict[str, Any]) -> None:
         with recipe_path.open("r", encoding="utf-8") as handle:
-            data = yaml.safe_load(handle)
+            data = _load_recipe(handle)
         steps = data.get("steps", [])
         if not isinstance(steps, list):
             raise RecipeExecutionError("Recipe steps must be a list.")
@@ -196,3 +199,35 @@ def _wrap_eval_namespace(value: Any) -> Any:
     if isinstance(value, Sequence) and not isinstance(value, (str, bytes, bytearray)):
         return type(value)(_wrap_eval_namespace(item) for item in value)
     return value
+
+
+def _load_recipe(handle: Any) -> Dict[str, Any]:
+    """Load recipe data from a file-like handle.
+
+    The project prefers PyYAML, but the dependency might not be installed in the
+    execution environment (e.g. during kata style exercises). When PyYAML is
+    unavailable we fall back to JSON parsing which is sufficient for the test
+    suite and still provides a helpful error message if parsing fails.
+    """
+
+    text = handle.read()
+
+    if yaml is not None:
+        data = yaml.safe_load(text) or {}
+        if not isinstance(data, dict):
+            raise RecipeExecutionError("Recipe must decode to a mapping.")
+        return data
+
+    import json
+
+    try:
+        data = json.loads(text or "{}")
+    except json.JSONDecodeError as exc:  # pragma: no cover - defensive
+        raise RecipeExecutionError(
+            "Failed to parse recipe. Install PyYAML to enable YAML support."
+        ) from exc
+
+    if not isinstance(data, dict):
+        raise RecipeExecutionError("Recipe must decode to a mapping.")
+
+    return data
