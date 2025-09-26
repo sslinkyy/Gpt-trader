@@ -1,0 +1,9 @@
+﻿name: browser.close
+steps:
+  - reporter.note:
+      message: "Closing browser"
+  - app.close:
+      name: browser
+      timeout_ms: 2000
+  - reporter.note:
+      message: "Browser close requested"

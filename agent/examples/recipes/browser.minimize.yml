@@ -1,0 +1,9 @@
+﻿name: browser.minimize
+steps:
+  - reporter.note:
+      message: "Minimizing browser window"
+  - app.minimize:
+      name: browser
+      target: latest
+  - reporter.note:
+      message: "Browser minimize requested"

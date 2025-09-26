@@ -1,0 +1,7 @@
+﻿name: app.restore
+steps:
+  - reporter.note:
+      message: "Restoring application"
+  - app.restore: {}
+  - reporter.note:
+      message: "Application restore requested"

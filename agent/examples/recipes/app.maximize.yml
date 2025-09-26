@@ -1,0 +1,7 @@
+﻿name: app.maximize
+steps:
+  - reporter.note:
+      message: "Maximizing application"
+  - app.maximize: {}
+  - reporter.note:
+      message: "Application maximize requested"

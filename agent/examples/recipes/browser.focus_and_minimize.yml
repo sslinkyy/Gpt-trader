@@ -1,0 +1,12 @@
+﻿name: browser.focus_and_minimize
+steps:
+  - reporter.note:
+      message: "Focusing browser"
+  - app.focus:
+      name: browser
+      target: latest
+  - reporter.note:
+      message: "Minimizing browser"
+  - app.minimize:
+      name: browser
+      target: latest

@@ -1,0 +1,7 @@
+﻿name: app.close
+steps:
+  - reporter.note:
+      message: "Closing application"
+  - app.close: {}
+  - reporter.note:
+      message: "Application close requested"

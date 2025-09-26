@@ -1,0 +1,7 @@
+﻿name: app.launch
+steps:
+  - reporter.note:
+      message: "Launching application"
+  - app.start: {}
+  - reporter.note:
+      message: "Application launch requested"

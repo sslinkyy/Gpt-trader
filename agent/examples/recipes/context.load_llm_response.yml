@@ -1,0 +1,6 @@
+﻿name: context.load_llm_response
+steps:
+  - reporter.note:
+      message: "Loading LLM response from clipboard"
+  - clipboard.load_context:
+      context_key: llm_response

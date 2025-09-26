@@ -1,0 +1,7 @@
+﻿name: app.minimize
+steps:
+  - reporter.note:
+      message: "Minimizing application"
+  - app.minimize: {}
+  - reporter.note:
+      message: "Application minimize requested"
