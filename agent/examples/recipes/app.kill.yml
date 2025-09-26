@@ -1,0 +1,7 @@
+﻿name: app.kill
+steps:
+  - reporter.note:
+      message: "Force killing application"
+  - app.kill: {}
+  - reporter.note:
+      message: "Application force kill requested"

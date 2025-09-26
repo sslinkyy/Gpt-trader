@@ -1,4 +1,4 @@
-profiles:
+﻿profiles:
   default: safe
   definitions:
     safe:
@@ -33,9 +33,52 @@ intents:
   archive_directory: C:/Automation/intents/archive
 recipes:
   directory: agent/examples/recipes
+safety:
+  panic_hotkey: "ctrl+alt+shift+esc"
+features:
+  chat_bridge: true
+  ocr_intents: true
 intent_map:
   export_quotes:
     recipe: ts.web.export_quotes.yml
+  browser_open_home:
+    recipe: browser.open_home.yml
+  browser_focus:
+    recipe: browser.focus.yml
+  browser_refresh_quotes:
+    recipe: browser.refresh_quotes.yml
+  browser_close:
+    recipe: browser.close.yml
+  browser_force_kill:
+    recipe: browser.force_kill.yml
+  browser_minimize:
+    recipe: browser.minimize.yml
+  browser_restore:
+    recipe: browser.restore.yml
+  browser_maximize:
+    recipe: browser.maximize.yml
+  browser_focus_and_minimize:
+    recipe: browser.focus_and_minimize.yml
+  browser_open_url:
+    recipe: browser.open_url.yml
+  app_launch:
+    recipe: app.launch.yml
+  app_focus:
+    recipe: app.focus.yml
+  app_minimize:
+    recipe: app.minimize.yml
+  app_maximize:
+    recipe: app.maximize.yml
+  app_restore:
+    recipe: app.restore.yml
+  app_close:
+    recipe: app.close.yml
+  context_copy_for_llm:
+    recipe: context.copy_for_llm.yml
+  context_load_llm_response:
+    recipe: context.load_llm_response.yml
+  app_kill:
+    recipe: app.kill.yml
 apps:
   notepad:
     description: "Windows Notepad"
@@ -55,12 +98,15 @@ apps:
       process_name: "Calculator.exe"
   browser:
     description: "Default system browser"
-    protocol: "https"
+    path: "C:/Program Files/Google/Chrome/Application/chrome.exe"
+    args:
+      - "--new-window"
+      - "https://example.com"
     enabled: true
     window:
       title_match: ""
       class_match: null
-      process_name: null
+      process_name: "chrome.exe"
 llm:
   active_provider: openai_gpt4o
   providers:
@@ -75,3 +121,10 @@ state:
       cash_free: 100000.0
   market:
     session: closed
+
+
+
+
+
+
+

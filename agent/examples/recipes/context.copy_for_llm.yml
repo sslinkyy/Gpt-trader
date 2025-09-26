@@ -1,0 +1,9 @@
+﻿name: context.copy_for_llm
+steps:
+  - reporter.note:
+      message: "Collecting context for LLM handoff"
+  - context.snapshot:
+      context_key: llm_context
+  - clipboard.copy:
+      context_key: llm_context
+      message: "Continue workflow based on this context"

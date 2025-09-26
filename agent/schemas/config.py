@@ -349,6 +349,33 @@ class StateSchema:
 
 
 @dataclass
+class SafetySchema:
+    panic_hotkey: str = "ctrl+alt+shift+esc"
+
+    @classmethod
+    def from_dict(cls, data: Mapping[str, Any] | None) -> "SafetySchema":
+        data = data or {}
+        value = data.get("panic_hotkey", "ctrl+alt+shift+esc")
+        if not isinstance(value, str):
+            raise ValueError("Safety panic_hotkey must be a string.")
+        value = value.strip()
+        if not value:
+            raise ValueError("Safety panic_hotkey must be a non-empty string.")
+        return cls(panic_hotkey=value)
+@dataclass
+class FeatureFlagsSchema:
+    chat_bridge: bool = True
+    ocr_intents: bool = True
+
+    @classmethod
+    def from_dict(cls, data: Mapping[str, Any] | None) -> "FeatureFlagsSchema":
+        data = data or {}
+        return cls(
+            chat_bridge=bool(data.get("chat_bridge", True)),
+            ocr_intents=bool(data.get("ocr_intents", True)),
+        )
+
+@dataclass
 class IntentsSchema:
     directory: Path
     archive_directory: Path
@@ -378,6 +405,8 @@ class ConnectorConfigSchema:
     apps: AppRegistrySchema
     llm: LLMConfigSchema
     state: StateSchema
+    safety: SafetySchema = field(default_factory=SafetySchema)
+    features: FeatureFlagsSchema = field(default_factory=FeatureFlagsSchema)
     intent_map: Dict[str, Dict[str, str]] = field(default_factory=dict)
 
     @classmethod
@@ -389,6 +418,8 @@ class ConnectorConfigSchema:
             apps=AppRegistrySchema.from_dict(data.get("apps", {})),
             llm=LLMConfigSchema.from_dict(data.get("llm", {})),
             state=StateSchema.from_dict(data.get("state", {})),
+            safety=SafetySchema.from_dict(data.get("safety", {})),
+            features=FeatureFlagsSchema.from_dict(data.get("features", {})),
             intent_map={key: dict(value) for key, value in dict(data.get("intent_map", {})).items()},
         )
 
@@ -405,8 +436,9 @@ __all__ = [
     "AppConfigSchema",
     "ProfilesSchema",
     "LLMConfigSchema",
+    "SafetySchema",
+    "FeatureFlagsSchema",
     "IntentsSchema",
     "RecipesSchema",
     "StateSchema",
 ]
-

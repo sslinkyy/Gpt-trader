@@ -1,0 +1,12 @@
+name: browser.restore
+steps:
+  - reporter.note:
+      message: "Restoring browser window"
+  - app.restore:
+      name: browser
+      target: latest
+  - app.focus:
+      name: browser
+      target: latest
+  - reporter.note:
+      message: "Browser restore requested"

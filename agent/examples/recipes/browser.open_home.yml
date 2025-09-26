@@ -1,0 +1,8 @@
+﻿name: browser.open_home
+steps:
+  - reporter.note:
+      message: "Opening browser home page"
+  - app.start:
+      name: browser
+  - reporter.note:
+      message: "Browser launch requested"

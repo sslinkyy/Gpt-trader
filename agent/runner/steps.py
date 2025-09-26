@@ -1,17 +1,18 @@
-"""Recipe step dispatch for the local RPA agent."""
+﻿"""Recipe step dispatch for the local RPA agent."""
 from __future__ import annotations
 
 import logging
 from collections.abc import Mapping, Sequence
+from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Dict, List
 
 try:  # pragma: no cover - import guard exercised in tests via fallback
     import yaml  # type: ignore[import-not-found]
 except ImportError:  # pragma: no cover - handled by fallback loader below
     yaml = None
 
-from agent.apps.registry import ApplicationRegistry
+from agent.apps.registry import ApplicationProcess, ApplicationRegistry, WindowRecord
 from agent.runner.ui_engine import UIClickEngine, UIElementHandle
 from agent.state.store import StateStore
 
@@ -59,64 +60,270 @@ class RecipeRunner:
             with self._state.activity(name, metadata=metadata):
                 handler(payload_data, context)
 
-    # --- Step handlers -------------------------------------------------
+    def _require_app_name(self, payload: Dict[str, Any], context: Dict[str, Any], action: str) -> str:
+        app_name = payload.get("name")
+        if not app_name:
+            for key in ("name", "app", "application"):
+                value = context.get(key)
+                if value:
+                    app_name = value
+                    break
+        if not app_name:
+            raise RecipeExecutionError(f"{action} requires a 'name'.")
+        return str(app_name)
+
+    def _resolve_target(self, app_name: str, payload: Dict[str, Any], context: Dict[str, Any]) -> Any:
+        if "instance_id" in payload:
+            return payload["instance_id"]
+        if "instance" in payload:
+            return payload["instance"]
+        if "pid" in payload:
+            return int(payload["pid"])
+        if "instance_id" in context:
+            return context["instance_id"]
+        if "instance" in context:
+            return context["instance"]
+        if "pid" in context:
+            return int(context["pid"])
+        target = payload.get("target") if "target" in payload else context.get("target")
+        if target:
+            return target
+        latest = self._state.latest_instance_for(app_name)
+        if latest:
+            return latest
+        return "latest"
+
+    def _record_process(self, record: ApplicationProcess, *, status: str | None = None) -> None:
+        self._state.register_process(
+            app=record.definition.name,
+            instance_id=record.instance_id,
+            pid=record.pid or -1,
+            preset=record.preset,
+            started_at=record.started_at,
+            last_focused_at=record.last_focused_at,
+            status=status or "running",
+            windows=self._serialize_windows(record.windows),
+        )
+
+    @staticmethod
+    def _serialize_windows(windows: Dict[int, WindowRecord]) -> List[Dict[str, Any]]:
+        serialized: List[Dict[str, Any]] = []
+        for hwnd, info in windows.items():
+            serialized.append(
+                {
+                    "hwnd": hwnd,
+                    "title": info.title,
+                    "class_name": info.class_name,
+                    "bounds": info.bounds,
+                    "is_visible": info.is_visible,
+                    "is_minimized": info.is_minimized,
+                    "process_name": info.process_name,
+                    "pid": info.pid,
+                    "last_seen": info.last_seen.isoformat() if isinstance(info.last_seen, datetime) else info.last_seen,
+                }
+            )
+        return serialized
 
     def step_app_start(self, payload: Dict[str, Any], context: Dict[str, Any]) -> None:
-        app_name = payload.get("name")
-        if not app_name:
-            raise RecipeExecutionError("app.start requires a 'name'.")
-        app = self._apps.get(app_name)
-        app.require_enabled()
-        LOGGER.info("[demo] Would start app %s with config %s", app_name, app.config)
+        app_name = self._require_app_name(payload, context, "app.start")
+        preset = payload.get("preset") if "preset" in payload else context.get("preset")
+        extra_args = payload.get("args") if "args" in payload else context.get("args")
+        env = payload.get("env") if "env" in payload else context.get("env")
+        working_dir = payload.get("working_dir") if "working_dir" in payload else context.get("working_dir")
+        inherit_env = payload.get("inherit_env") if "inherit_env" in payload else context.get("inherit_env")
+
+        if extra_args is not None and not isinstance(extra_args, (list, tuple)):
+            raise RecipeExecutionError("app.start 'args' must be a list of strings.")
+        if env is not None and not isinstance(env, dict):
+            raise RecipeExecutionError("app.start 'env' must be a mapping.")
+
+        record = self._apps.start(
+            app_name,
+            preset=preset,
+            args=list(extra_args or []),
+            env=env,
+            inherit_env=inherit_env,
+            working_dir=working_dir,
+        )
+        self._record_process(record)
+        context["instance_id"] = record.instance_id
+        context["pid"] = record.pid
+        _attach_process_metadata(context, record)
+        LOGGER.info(
+            "App %s started with pid=%s (instance=%s)",
+            app_name,
+            record.pid,
+            record.instance_id,
+        )
 
     def step_app_focus(self, payload: Dict[str, Any], context: Dict[str, Any]) -> None:
-        app_name = payload.get("name")
-        if not app_name:
-            raise RecipeExecutionError("app.focus requires a 'name'.")
-        LOGGER.info("[demo] Would focus app window for %s", app_name)
+        app_name = self._require_app_name(payload, context, "app.focus")
+        target = self._resolve_target(app_name, payload, context)
+        record = self._apps.focus(app_name, target=target)
+        self._state.update_process(
+            record.instance_id,
+            windows=self._serialize_windows(record.windows),
+            timestamp=_utcnow(),
+        )
+        context["instance_id"] = record.instance_id
+        context["pid"] = record.pid
+        _attach_process_metadata(context, record)
+        LOGGER.info("Focused app %s (pid=%s)", app_name, record.pid)
+
+    def step_app_minimize(self, payload: Dict[str, Any], context: Dict[str, Any]) -> None:
+        app_name = self._require_app_name(payload, context, "app.minimize")
+        target = self._resolve_target(app_name, payload, context)
+        record = self._apps.minimize(app_name, target=target)
+        now = _utcnow()
+        self._state.update_process(
+            record.instance_id,
+            last_action="minimize",
+            timestamp=now,
+            windows=self._serialize_windows(record.windows),
+        )
+        context["instance_id"] = record.instance_id
+        context["pid"] = record.pid
+        _attach_process_metadata(context, record)
+        LOGGER.info("Minimized app %s (pid=%s)", app_name, record.pid)
+
+    def step_app_maximize(self, payload: Dict[str, Any], context: Dict[str, Any]) -> None:
+        app_name = self._require_app_name(payload, context, "app.maximize")
+        target = self._resolve_target(app_name, payload, context)
+        record = self._apps.maximize(app_name, target=target)
+        now = _utcnow()
+        self._state.update_process(
+            record.instance_id,
+            last_action="maximize",
+            timestamp=now,
+            windows=self._serialize_windows(record.windows),
+        )
+        context["instance_id"] = record.instance_id
+        context["pid"] = record.pid
+        _attach_process_metadata(context, record)
+        LOGGER.info("Maximized app %s (pid=%s)", app_name, record.pid)
+
+    def step_app_restore(self, payload: Dict[str, Any], context: Dict[str, Any]) -> None:
+        app_name = self._require_app_name(payload, context, "app.restore")
+        target = self._resolve_target(app_name, payload, context)
+        record = self._apps.restore(app_name, target=target)
+        now = _utcnow()
+        self._state.update_process(
+            record.instance_id,
+            last_action="restore",
+            timestamp=now,
+            windows=self._serialize_windows(record.windows),
+        )
+        context["instance_id"] = record.instance_id
+        context["pid"] = record.pid
+        _attach_process_metadata(context, record)
+        LOGGER.info("Restored app %s (pid=%s)", app_name, record.pid)
 
     def step_app_close(self, payload: Dict[str, Any], context: Dict[str, Any]) -> None:
-        app_name = payload.get("name")
-        LOGGER.info("[demo] Would close app %s", app_name)
+        app_name = self._require_app_name(payload, context, "app.close")
+        timeout_ms = payload.get("timeout_ms") if "timeout_ms" in payload else context.get("timeout_ms")
+        force_flag = payload.get("force") if "force" in payload else context.get("force")
+        all_flag = payload.get("all") if "all" in payload else context.get("all")
+        force = bool(force_flag) if force_flag is not None else False
+        all_instances = bool(all_flag) if all_flag is not None else False
+        timeout = float(timeout_ms) / 1000.0 if timeout_ms is not None else 5.0
+        records = self._apps.running_processes(app_name)
+        self._apps.close(app_name, timeout=timeout, force=force, all_instances=all_instances)
+        timestamp = _utcnow()
+        for record in records:
+            self._state.update_process(
+                record.instance_id,
+                status="closed",
+                closed_at=timestamp,
+                timestamp=timestamp,
+                windows=[],
+            )
+        LOGGER.info("Closed app %s", app_name)
 
     def step_app_kill(self, payload: Dict[str, Any], context: Dict[str, Any]) -> None:
-        app_name = payload.get("name")
-        LOGGER.info("[demo] Would kill app %s", app_name)
+        app_name = self._require_app_name(payload, context, "app.kill")
+        all_flag = payload.get("all") if "all" in payload else context.get("all")
+        all_instances = bool(all_flag) if all_flag is not None else False
+        records = self._apps.running_processes(app_name)
+        self._apps.kill(app_name, all_instances=all_instances)
+        timestamp = _utcnow()
+        for record in records:
+            self._state.update_process(
+                record.instance_id,
+                status="killed",
+                closed_at=timestamp,
+                timestamp=timestamp,
+                windows=[],
+            )
+        LOGGER.info("Killed app %s", app_name)
 
     def step_ui_click(self, payload: Dict[str, Any], context: Dict[str, Any]) -> None:
         selector = payload.get("selector", {})
-        identifier = selector.get("automation_id") or selector.get("name") or "unknown"
-        element = UIElementHandle(identifier=identifier)
+        identifier = selector.get("identifier", "unknown")
+        element = UIElementHandle(identifier=identifier, is_enabled=selector.get("enabled", True))
         method = self._ui_engine.click(element)
-        LOGGER.info("ui.click resolved via %s", method)
+        LOGGER.info("UI click succeeded using %s", method)
 
-    def step_ui_wait(self, payload: Dict[str, Any], context: Dict[str, Any]) -> None:
-        LOGGER.info("[demo] Would wait for selector %s", payload.get("selector"))
+    def step_ui_type(self, payload: Dict[str, Any], context: Dict[str, Any]) -> None:
+        LOGGER.info("[demo] Would type '%s' into selector %s", payload.get("text"), payload.get("selector"))
 
-    def step_ui_exists(self, payload: Dict[str, Any], context: Dict[str, Any]) -> None:
-        LOGGER.info("[demo] Would assert existence for selector %s", payload.get("selector"))
+    def step_context_snapshot(self, payload: Dict[str, Any], context: Dict[str, Any]) -> None:
+        key = payload.get("context_key", "context_snapshot")
+        snapshot = self._state.snapshot()
+        snapshot.update({
+            "context": dict(context),
+        })
+        context.setdefault("_captures", {})[key] = snapshot
+        LOGGER.info("Captured context snapshot under key '%s'", key)
 
-    def step_ui_focus(self, payload: Dict[str, Any], context: Dict[str, Any]) -> None:
-        LOGGER.info("[demo] Would focus selector %s", payload.get("selector"))
+    def step_clipboard_copy(self, payload: Dict[str, Any], context: Dict[str, Any]) -> None:
+        try:
+            import pyperclip  # type: ignore[import-not-found]
+        except ImportError as exc:  # pragma: no cover - dependency check
+            raise RecipeExecutionError("clipboard.copy requires the 'pyperclip' package.") from exc
 
-    def step_ui_read(self, payload: Dict[str, Any], context: Dict[str, Any]) -> None:
-        LOGGER.info("[demo] Would read text from selector %s", payload.get("selector"))
+        key = payload.get("context_key") or context.get("context_key") or payload.get("from_key") or context.get("from_key") or "context_snapshot"
+        message = payload.get("message") or context.get("message")
 
-    def step_input_type(self, payload: Dict[str, Any], context: Dict[str, Any]) -> None:
-        text = payload.get("text", "")
-        LOGGER.info("[demo] Would type text: %s", text)
+        data = None
+        if "_captures" in context and key in context["_captures"]:
+            data = context["_captures"][key]
+        if data is None:
+            data = self._state.snapshot()
 
-    def step_input_key(self, payload: Dict[str, Any], context: Dict[str, Any]) -> None:
-        LOGGER.info("[demo] Would press key: %s", payload.get("key"))
+        payload_to_send: Any
+        if message:
+            payload_to_send = {
+                "message": message,
+                "snapshot": data,
+            }
+        else:
+            payload_to_send = data
 
-    def step_input_hotkey(self, payload: Dict[str, Any], context: Dict[str, Any]) -> None:
-        LOGGER.info("[demo] Would press hotkey: %s", payload.get("combo"))
+        serialized = yaml.safe_dump(payload_to_send, sort_keys=False)
+        pyperclip.copy(serialized)
+        LOGGER.info("Copied context payload to clipboard (%s)", key)
+
+    def step_clipboard_load_context(self, payload: Dict[str, Any], context: Dict[str, Any]) -> None:
+        try:
+            import pyperclip  # type: ignore[import-not-found]
+        except ImportError as exc:  # pragma: no cover - dependency check
+            raise RecipeExecutionError("clipboard.load_context requires the 'pyperclip' package.") from exc
+
+        raw = pyperclip.paste()
+        if not raw:
+            raise RecipeExecutionError("Clipboard is empty.")
+        try:
+            data = yaml.safe_load(raw)
+        except Exception as exc:
+            raise RecipeExecutionError(f"Failed to parse clipboard content: {exc}") from exc
+
+        if isinstance(data, dict):
+            context.update(data)
+        context.setdefault("_captures", {})[payload.get("context_key", "clipboard")] = data
+        LOGGER.info("Loaded clipboard content into context (%s)", payload.get("context_key", "clipboard"))
 
     def step_browser_launch(self, payload: Dict[str, Any], context: Dict[str, Any]) -> None:
-        LOGGER.info("[demo] Would launch browser context: %s", payload)
-
-    def step_browser_close(self, payload: Dict[str, Any], context: Dict[str, Any]) -> None:
-        LOGGER.info("[demo] Would close browser context")
+        LOGGER.info("[demo] Would configure browser session %s", payload)
 
     def step_page_goto(self, payload: Dict[str, Any], context: Dict[str, Any]) -> None:
         LOGGER.info("[demo] Would navigate browser to %s", payload.get("url"))
@@ -174,6 +381,22 @@ def _extract_expression(expr: str) -> str:
     return stripped
 
 
+def _utcnow() -> datetime:
+    return datetime.now(timezone.utc)
+
+
+def _attach_process_metadata(context: Dict[str, Any], record: ApplicationProcess) -> None:
+    processes = context.setdefault("_apps", {})
+    processes[record.definition.name] = {
+        "pid": record.pid,
+        "preset": record.preset,
+        "instance_id": record.instance_id,
+        "windows": RecipeRunner._serialize_windows(record.windows),
+        "started_at": record.started_at.isoformat(),
+        "last_focused_at": record.last_focused_at.isoformat() if record.last_focused_at else None,
+    }
+
+
 class _EvalNamespace:
     """Provide attribute and key access for nested mappings during eval."""
 
@@ -204,14 +427,6 @@ def _wrap_eval_namespace(value: Any) -> Any:
 
 
 def _load_recipe(handle: Any) -> Dict[str, Any]:
-    """Load recipe data from a file-like handle.
-
-    The project prefers PyYAML, but the dependency might not be installed in the
-    execution environment (e.g. during kata style exercises). When PyYAML is
-    unavailable we fall back to JSON parsing which is sufficient for the test
-    suite and still provides a helpful error message if parsing fails.
-    """
-
     text = handle.read()
 
     if yaml is not None:

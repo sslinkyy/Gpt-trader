@@ -1,0 +1,11 @@
+﻿name: browser.refresh_quotes
+steps:
+  - reporter.note:
+      message: "Refreshing quotes page"
+  - app.focus:
+      name: browser
+      target: latest
+  - page.goto:
+      url: "https://example.com/quotes"
+  - reporter.note:
+      message: "Quotes page refresh requested"

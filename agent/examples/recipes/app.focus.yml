@@ -1,0 +1,7 @@
+﻿name: app.focus
+steps:
+  - reporter.note:
+      message: "Focusing application"
+  - app.focus: {}
+  - reporter.note:
+      message: "Application focus requested"

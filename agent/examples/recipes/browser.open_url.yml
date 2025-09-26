@@ -1,0 +1,8 @@
+﻿name: browser.open_url
+steps:
+  - reporter.note:
+      message: "Opening browser URL"
+  - app.start:
+      name: browser
+  - reporter.note:
+      message: "Browser URL launch requested"

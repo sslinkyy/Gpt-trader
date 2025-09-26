@@ -57,6 +57,7 @@ def _expand_env_vars(config: ConnectorConfigSchema) -> None:
         profile.toggles.network_allow = [os.path.expandvars(p) for p in profile.toggles.network_allow]
         profile.toggles.filesystem_allow = [os.path.expandvars(p) for p in profile.toggles.filesystem_allow]
 
+    config.safety.panic_hotkey = os.path.expandvars(config.safety.panic_hotkey)
     config.intents.directory = Path(os.path.expandvars(str(config.intents.directory)))
     config.intents.archive_directory = Path(os.path.expandvars(str(config.intents.archive_directory)))
     config.recipes.directory = Path(os.path.expandvars(str(config.recipes.directory)))

@@ -1,0 +1,9 @@
+﻿name: browser.force_kill
+steps:
+  - reporter.note:
+      message: "Forcefully terminating browser"
+  - app.kill:
+      name: browser
+      all: true
+  - reporter.note:
+      message: "Browser termination requested"
