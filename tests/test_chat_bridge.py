@@ -110,3 +110,44 @@ intents:
 
     emitted = bridge.process_transcript("[macro:list_intents topic=browser]")
     assert emitted == 0
+
+
+def test_bridge_uses_llm_fallback(tmp_path: Path) -> None:
+    intents_dir = tmp_path / "intents"
+    manifest = tmp_path / "manifest.yml"
+    manifest.write_text(
+        """
+intents:
+  - intent: app_launch
+    recipe: app.launch.yml
+    description: Application lifecycle control
+    args:
+      - name
+    synonyms:
+      - app launch
+      - launch app
+"""
+    )
+    mapping = {"app_launch": IntentMapping(recipe=Path("app.launch.yml"))}
+    calls = []
+
+    def fake_llm(utterance: str, manifest_path: Path):
+        calls.append(utterance)
+        return ("app_launch", {"name": "calc"}) if "start calculator" in utterance else None
+
+    bridge = ChatIntentBridge(
+        intents_dir=intents_dir,
+        mappings=mapping,
+        clock=lambda: datetime(2024, 1, 1, 12, 0, 0),
+        manifest_path=manifest,
+        llm_callback=fake_llm,
+    )
+
+    assert bridge._manifest_path == manifest
+
+    emitted = bridge.process_transcript("please start calculator")
+
+    assert calls
+    assert emitted == 1
+    payload = yaml.safe_load(next(intents_dir.glob("*.yml")).read_text(encoding="utf-8"))
+    assert payload == {"intent": "app_launch", "args": {"name": "calc"}}
