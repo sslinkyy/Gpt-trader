@@ -1,16 +1,16 @@
-# Local Windows-First RPA Agent
+ï»¿# Local Windows-First RPA Agent
 
 This scaffold provides a Windows-centric automation runner that watches for intents, executes YAML recipes, and exposes helpers for screen automation, OCR-triggered flows, and LLM-assisted hand-offs.
 
 ## Key Capabilities
 
-- **Configurable intent catalog** – intents live in `connector.config.yml:intent_map` and map to reusable YAML recipes under `agent/examples/recipes/`.
-- **Application lifecycle control** – generic `app.*` recipes (launch, focus, minimize, restore, close, kill) resolve defaults from context so the same intents work across OCR, chat, and file triggers.
-- **Browser automation helpers** – stock Chrome recipes for open-home, focus/minimize, restore, refresh quotes, and launching arbitrary URLs.
-- **Screen-based triggers** – the OCR scanner looks for `#intent#` markers, parses macro syntax, and fires each command once (deduped via `(intent, args)` cache).
-- **Clipboard + LLM handoff** – `context.copy_for_llm` captures state/context and copies it to the clipboard; `context.load_llm_response` ingests an LLM reply and merges it back into the execution context.
-- **Chat bridge** – when enabled, inline macros such as `[macro:browser_minimize action_id=203]` are parsed and written to the intents directory.
-- **Emergency hotkey** – `ctrl+alt+shift+esc` stops the watcher, chat bridge, OCR thread, and raises an interrupt.
+- **Configurable intent catalog** â€“ intents live in `connector.config.yml:intent_map` and map to reusable YAML recipes under `agent/examples/recipes/`.
+- **Application lifecycle control** â€“ generic `app.*` recipes (launch, focus, minimize, restore, close, kill) resolve defaults from context so the same intents work across OCR, chat, and file triggers.
+- **Browser automation helpers** â€“ stock Chrome recipes for open-home, focus/minimize, restore, refresh quotes, and launching arbitrary URLs.
+- **Screen-based triggers** â€“ the OCR scanner looks for `#intent#` markers, parses macro syntax, and fires each command once (deduped via `(intent, args)` cache).
+- **Clipboard + LLM handoff** â€“ `context.copy_for_llm` captures state/context and copies it to the clipboard; `context.load_llm_response` ingests an LLM reply and merges it back into the execution context.
+- **Chat bridge** â€“ when enabled, inline macros such as `[macro:browser_minimize action_id=203]` are parsed and written to the intents directory.
+- **Emergency hotkey** â€“ `ctrl+alt+shift+esc` stops the watcher, chat bridge, OCR thread, and raises an interrupt.
 
 ## Installation
 
@@ -30,11 +30,11 @@ python agent.py
 
 Useful flags:
 
-- `--ocr-intents / --no-ocr-intents` – enable or disable the OCR scanner (defaults come from `features.ocr_intents`).
-- `--chat-bridge / --no-chat-bridge` – enable or disable the macro-aware REPL (`features.chat_bridge`).
-- `--profile {safe|balanced|unrestricted}` – switch automation toggles on startup.
-- `--allow-focus-tap` – permit the MSAA focus tap fallback when UI controls reject direct clicks.
-- `--dry-run` – skip starting the intent watcher (configuration sanity check).
+- `--ocr-intents / --no-ocr-intents` â€“ enable or disable the OCR scanner (defaults come from `features.ocr_intents`).
+- `--chat-bridge / --no-chat-bridge` â€“ enable or disable the macro-aware REPL (`features.chat_bridge`).
+- `--profile {safe|balanced|unrestricted}` â€“ switch automation toggles on startup.
+- `--allow-focus-tap` â€“ permit the MSAA focus tap fallback when UI controls reject direct clicks.
+- `--dry-run` â€“ skip starting the intent watcher (configuration sanity check).
 
 With OCR enabled, type markers such as:
 
@@ -45,6 +45,13 @@ With OCR enabled, type markers such as:
 ```
 
 The scanner translates them into standard macros and writes intents to `C:/Automation/intents/`.
+
+
+## Discovering Intents
+
+
+- Enter `list intents for browser` (or `[macro:list_intents topic=browser]`) in the chat bridge to view relevant entries.
+- Natural language commands that do not match directly now show the top keyword candidates. Optionally wire an LLM callback into `ChatIntentBridge` to translate free-form requests; it receives the intent manifest and returns `{intent, args}` suggestions.
 
 ## Intent Catalog
 

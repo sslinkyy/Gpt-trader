@@ -6,7 +6,7 @@ from datetime import datetime
 from itertools import count
 from pathlib import Path
 from threading import Event
-from typing import Callable, Dict, Iterable
+from typing import Callable, Dict, Iterable, Optional, Tuple
 
 import yaml
 
@@ -27,6 +27,7 @@ class ChatIntentBridge:
         input_func: Callable[[str], str] | None = None,
         clock: Callable[[], datetime] | None = None,
         manifest_path: Path | None = None,
+        llm_callback: Callable[[str, Path], Optional[Tuple[str, Dict[str, str]]]] | None = None,
     ) -> None:
         self._intents_dir = intents_dir
         self._mappings = mappings
@@ -36,6 +37,7 @@ class ChatIntentBridge:
         self._sequence = count()
         default_manifest = Path("intent_catalog/manifest.yml")
         self._manifest_path = manifest_path or (default_manifest if default_manifest.exists() else None)
+        self._llm_callback = llm_callback
         self._stop_event = Event()
 
     def run(self) -> None:
@@ -126,6 +128,26 @@ class ChatIntentBridge:
             if candidates:
                 preview = ", ".join(f"{name} (score={score})" for name, score in candidates[:3])
                 LOGGER.info("No intent matched '%s'. Closest candidates: %s", transcript, preview)
+            if self._llm_callback and self._manifest_path is not None:
+                llm_result = self._llm_callback(transcript, self._manifest_path)
+                if llm_result:
+                    intent_name, args = llm_result
+                    if intent_name == 'intent_list':
+                        topic = args.get('topic') if args else None
+                        self._handle_list_intents(topic)
+                        LOGGER.info("Listed intents via LLM suggestion for topic '%s'", topic)
+                        return emitted
+                    mapping = self._mappings.get(intent_name)
+                    if not mapping:
+                        LOGGER.warning("LLM proposed intent '%s' is not mapped; ignoring", intent_name)
+                    else:
+                        payload: Dict[str, object] = {'intent': intent_name}
+                        if args:
+                            payload['args'] = args
+                        dest = self._write_intent(intent_name, payload)
+                        LOGGER.info("Intent %s written to %s via LLM router", intent_name, dest)
+                        emitted += 1
+                        return emitted
 
         if not commands:
             return emitted
