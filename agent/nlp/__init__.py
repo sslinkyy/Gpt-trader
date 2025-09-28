@@ -1,5 +1,5 @@
 """Natural-language parsing helpers."""
 
-from .router import load_intents, route, IntentDefinition
+from .router import IntentDefinition, load_intents, rank, route
 
-__all__ = ["load_intents", "route", "IntentDefinition"]
+__all__ = ["IntentDefinition", "load_intents", "rank", "route"]
