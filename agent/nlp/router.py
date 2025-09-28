@@ -66,31 +66,45 @@ def parse_args(utterance: str) -> Dict[str, str]:
     return args
 
 
+
+
+def _score_candidates(utterance: str, manifest: Dict[str, IntentDefinition]) -> List[Tuple[str, int]]:
+    scores: List[Tuple[str, int]] = []
+    for definition in manifest.values():
+        score = definition.match_score(utterance)
+        if score > 0:
+            scores.append((definition.name, score))
+    scores.sort(key=lambda item: item[1], reverse=True)
+    return scores
+
+def rank(utterance: str, *, manifest_path: Path) -> List[Tuple[str, int]]:
+    utterance_norm = (utterance or "").lower().strip()
+    if not utterance_norm:
+        return []
+    manifest = _get_manifest(manifest_path)
+    return _score_candidates(utterance_norm, manifest)
+
 def route(
     utterance: str,
     *,
     manifest_path: Path,
     minimum_score: int = 2,
 ) -> Optional[Tuple[str, Dict[str, str]]]:
-    utterance_norm = utterance.lower().strip()
+    utterance_norm = (utterance or "").lower().strip()
     if not utterance_norm:
         return None
 
-    manifests = _get_manifest(manifest_path)
-    best_name: Optional[str] = None
-    best_score = minimum_score - 1
-    for definition in manifests.values():
-        score = definition.match_score(utterance_norm)
-        if score > best_score:
-            best_name = definition.name
-            best_score = score
-
-    if not best_name or best_name not in manifests or best_score < minimum_score:
+    manifest = _get_manifest(manifest_path)
+    candidates = _score_candidates(utterance_norm, manifest)
+    if not candidates:
         return None
 
+    best_name, best_score = candidates[0]
+    if best_score < minimum_score:
+        return None
+
+    definition = manifest[best_name]
     args = parse_args(utterance_norm)
-    definition = manifests[best_name]
-    # Filter args to known keys unless none specified
     if definition.args:
         args = {key: value for key, value in args.items() if key in definition.args}
     return best_name, args

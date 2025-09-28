@@ -109,6 +109,7 @@ class ChatIntentBridge:
                 if intent_name == "intent_list":
                     topic = args.get("topic") if args else None
                     self._handle_list_intents(topic)
+                    LOGGER.info("Listed intents using topic '%s'", topic)
                     return emitted
                 mapping = self._mappings.get(intent_name)
                 if not mapping:
@@ -121,6 +122,10 @@ class ChatIntentBridge:
                     LOGGER.info("Intent %s written to %s via NL router", intent_name, dest)
                     emitted += 1
                     return emitted
+            candidates = router.rank(transcript, manifest_path=self._manifest_path)
+            if candidates:
+                preview = ", ".join(f"{name} (score={score})" for name, score in candidates[:3])
+                LOGGER.info("No intent matched '%s'. Closest candidates: %s", transcript, preview)
 
         if not commands:
             return emitted
