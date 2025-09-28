@@ -72,3 +72,38 @@ def test_bridge_handles_multiple_commands(tmp_path: Path) -> None:
         "intent": "trade",
         "args": {"symbol": "MSFT", "qty": "5"},
     } in payloads
+
+
+
+def test_bridge_routes_natural_language(tmp_path: Path) -> None:
+    intents_dir = tmp_path / "intents"
+    manifest = tmp_path / "manifest.yml"
+    manifest.write_text(
+        """
+intents:
+  - intent: app_launch
+    recipe: app.launch.yml
+    description: Application lifecycle control
+    args:
+      - name
+    synonyms:
+      - app launch
+      - launch app
+"""
+    )
+    mapping = {"app_launch": IntentMapping(recipe=Path("app.launch.yml"))}
+    bridge = ChatIntentBridge(
+        intents_dir=intents_dir,
+        mappings=mapping,
+        clock=lambda: datetime(2024, 1, 1, 12, 0, 0),
+        manifest_path=manifest,
+    )
+
+    emitted = bridge.process_transcript("please launch app name=calc")
+
+    assert emitted == 1
+    payload = yaml.safe_load(next(intents_dir.glob("*.yml")).read_text(encoding="utf-8"))
+    assert payload == {
+        "intent": "app_launch",
+        "args": {"name": "calc"},
+    }

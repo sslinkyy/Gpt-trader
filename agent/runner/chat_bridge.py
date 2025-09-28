@@ -12,6 +12,7 @@ import yaml
 
 from agent.runner.chat_commands import ChatCommandParser
 from agent.runner.intent_watcher import IntentMapping
+from agent.nlp import router
 
 LOGGER = logging.getLogger(__name__)
 
@@ -25,6 +26,7 @@ class ChatIntentBridge:
         mappings: Dict[str, IntentMapping],
         input_func: Callable[[str], str] | None = None,
         clock: Callable[[], datetime] | None = None,
+        manifest_path: Path | None = None,
     ) -> None:
         self._intents_dir = intents_dir
         self._mappings = mappings
@@ -32,6 +34,8 @@ class ChatIntentBridge:
         self._clock = clock or datetime.utcnow
         self._parser = ChatCommandParser()
         self._sequence = count()
+        default_manifest = Path("intent_catalog/manifest.yml")
+        self._manifest_path = manifest_path or (default_manifest if default_manifest.exists() else None)
         self._stop_event = Event()
 
     def run(self) -> None:
@@ -76,10 +80,27 @@ class ChatIntentBridge:
         """Parse *transcript* and emit intents for known commands."""
 
         commands = self._parser.parse(transcript)
-        if not commands:
-            return 0
-
         emitted = 0
+
+        if not commands and self._manifest_path is not None:
+            routed = router.route(transcript, manifest_path=self._manifest_path)
+            if routed:
+                intent_name, args = routed
+                mapping = self._mappings.get(intent_name)
+                if not mapping:
+                    LOGGER.warning("Routed intent '%s' is not mapped; ignoring", intent_name)
+                else:
+                    payload: Dict[str, object] = {"intent": intent_name}
+                    if args:
+                        payload["args"] = args
+                    dest = self._write_intent(intent_name, payload)
+                    LOGGER.info("Intent %s written to %s via NL router", intent_name, dest)
+                    emitted += 1
+                    return emitted
+
+        if not commands:
+            return emitted
+
         for command in commands:
             mapping = self._mappings.get(command.name)
             if not mapping:
@@ -87,8 +108,8 @@ class ChatIntentBridge:
                 continue
 
             payload = command.to_intent_payload()
-            path = self._write_intent(command.name, payload)
-            LOGGER.info("Intent %s written to %s", command.name, path)
+            dest = self._write_intent(command.name, payload)
+            LOGGER.info("Intent %s written to %s", command.name, dest)
             emitted += 1
         return emitted
 
