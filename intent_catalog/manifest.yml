@@ -1,41 +1,140 @@
 intents:
 - intent: export_quotes
   recipe: ts.web.export_quotes.yml
+  description: Domain-specific automation
+  args: []
+  synonyms:
+  - export quotes
 - intent: browser_open_home
   recipe: browser.open_home.yml
+  description: Browser control intent
+  args: []
+  synonyms:
+  - browser open home
 - intent: browser_focus
   recipe: browser.focus.yml
+  description: Browser control intent
+  args: []
+  synonyms:
+  - browser focus
 - intent: browser_refresh_quotes
   recipe: browser.refresh_quotes.yml
+  description: Browser control intent
+  args: []
+  synonyms:
+  - browser refresh quotes
 - intent: browser_close
   recipe: browser.close.yml
+  description: Browser control intent
+  args: []
+  synonyms:
+  - browser close
 - intent: browser_force_kill
   recipe: browser.force_kill.yml
+  description: Browser control intent
+  args: []
+  synonyms:
+  - browser force kill
 - intent: browser_minimize
   recipe: browser.minimize.yml
+  description: Browser control intent
+  args: []
+  synonyms:
+  - browser minimize
 - intent: browser_restore
   recipe: browser.restore.yml
+  description: Browser control intent
+  args: []
+  synonyms:
+  - browser restore
 - intent: browser_maximize
   recipe: browser.maximize.yml
+  description: Browser control intent
+  args: []
+  synonyms:
+  - browser maximize
 - intent: browser_focus_and_minimize
   recipe: browser.focus_and_minimize.yml
+  description: Browser control intent
+  args: []
+  synonyms:
+  - browser focus and minimize
 - intent: browser_open_url
   recipe: browser.open_url.yml
+  description: Browser control intent
+  args: []
+  synonyms:
+  - browser open url
 - intent: app_launch
   recipe: app.launch.yml
+  description: Application lifecycle control
+  args:
+  - name
+  synonyms:
+  - app launch
+  - launch app
 - intent: app_focus
   recipe: app.focus.yml
+  description: Application lifecycle control
+  args:
+  - name
+  synonyms:
+  - app focus
 - intent: app_minimize
   recipe: app.minimize.yml
+  description: Application lifecycle control
+  args:
+  - name
+  synonyms:
+  - app minimize
 - intent: app_maximize
   recipe: app.maximize.yml
+  description: Application lifecycle control
+  args:
+  - name
+  synonyms:
+  - app maximize
 - intent: app_restore
   recipe: app.restore.yml
+  description: Application lifecycle control
+  args:
+  - name
+  synonyms:
+  - app restore
 - intent: app_close
   recipe: app.close.yml
+  description: Application lifecycle control
+  args:
+  - name
+  synonyms:
+  - app close
 - intent: context_copy_for_llm
   recipe: context.copy_for_llm.yml
+  description: Clipboard / LLM handoff utility
+  args:
+  - context_key
+  synonyms:
+  - context copy for llm
 - intent: context_load_llm_response
   recipe: context.load_llm_response.yml
+  description: Clipboard / LLM handoff utility
+  args:
+  - context_key
+  synonyms:
+  - context load llm response
 - intent: app_kill
   recipe: app.kill.yml
+  description: Application lifecycle control
+  args:
+  - name
+  synonyms:
+  - app kill
+- intent: intent_list
+  recipe: ''
+  description: List available intents filtered by topic keyword
+  args:
+  - topic
+  synonyms:
+  - list intents
+  - show intents
+  - display intents
