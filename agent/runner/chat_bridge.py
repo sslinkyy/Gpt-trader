@@ -71,6 +71,26 @@ class ChatIntentBridge:
             self.stop()
             LOGGER.info("Chat bridge stopped.")
 
+    def _handle_list_intents(self, topic: str | None) -> None:
+        if self._manifest_path is None:
+            LOGGER.warning("Intent manifest not configured; cannot list intents.")
+            return
+        definitions = router.load_intents(self._manifest_path).values()
+        topic_norm = (topic or "").strip().lower()
+        matches = []
+        for definition in definitions:
+            haystack = [definition.name.lower(), definition.description.lower(), definition.recipe.lower()] + [syn.lower() for syn in definition.synonyms]
+            if not topic_norm or any(topic_norm in field for field in haystack if field):
+                matches.append(definition)
+        if not matches:
+            LOGGER.info("No intents matched topic '%s'.", topic)
+            return
+        suffix = f" for '{topic}'" if topic_norm else ""
+        LOGGER.info("Intent catalog (%s matches)%s", len(matches), suffix)
+        for definition in matches:
+            summary = definition.description or definition.recipe or "(no description)"
+            LOGGER.info("- %s: %s", definition.name, summary)
+
     def stop(self) -> None:
         """Signal the bridge loop to exit."""
 
@@ -86,6 +106,10 @@ class ChatIntentBridge:
             routed = router.route(transcript, manifest_path=self._manifest_path)
             if routed:
                 intent_name, args = routed
+                if intent_name == "intent_list":
+                    topic = args.get("topic") if args else None
+                    self._handle_list_intents(topic)
+                    return emitted
                 mapping = self._mappings.get(intent_name)
                 if not mapping:
                     LOGGER.warning("Routed intent '%s' is not mapped; ignoring", intent_name)
@@ -102,6 +126,13 @@ class ChatIntentBridge:
             return emitted
 
         for command in commands:
+            if command.name == "list_intents":
+                topic = None
+                if command.args:
+                    topic = command.args.get("topic") or command.args.get("filter")
+                self._handle_list_intents(topic)
+                continue
+
             mapping = self._mappings.get(command.name)
             if not mapping:
                 LOGGER.warning("Unmapped intent '%s'; ignoring command %s", command.name, command.source)

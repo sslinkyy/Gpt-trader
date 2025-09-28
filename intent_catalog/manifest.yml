@@ -129,3 +129,12 @@ intents:
   - name
   synonyms:
   - app kill
+- intent: intent_list
+  recipe: ''
+  description: List available intents filtered by topic keyword
+  args:
+  - topic
+  synonyms:
+  - list intents
+  - show intents
+  - display intents

@@ -107,3 +107,6 @@ intents:
         "intent": "app_launch",
         "args": {"name": "calc"},
     }
+
+    emitted = bridge.process_transcript("[macro:list_intents topic=browser]")
+    assert emitted == 0

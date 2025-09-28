@@ -32,3 +32,10 @@ def test_router_respects_minimum_score():
 
 def test_router_returns_none_for_empty_input():
     assert router.route("   ", manifest_path=MANIFEST) is None
+
+def test_router_matches_list_intents():
+    result = router.route("list intents for browser", manifest_path=MANIFEST)
+    assert result is not None
+    intent, args = result
+    assert intent == "intent_list"
+    assert args.get("topic") == "browser"

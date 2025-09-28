@@ -59,6 +59,10 @@ def parse_args(utterance: str) -> Dict[str, str]:
     args: Dict[str, str] = {}
     for key, value in _PARAM_PATTERN.findall(utterance):
         args[key.lower()] = value
+    if "topic" not in args:
+        topic_match = re.search(r"(?:for|about)\s+([\w.-]+)", utterance)
+        if topic_match:
+            args["topic"] = topic_match.group(1)
     return args
 
 
